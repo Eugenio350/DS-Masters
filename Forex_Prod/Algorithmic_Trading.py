@@ -16,7 +16,7 @@ class AlgorithmicTradingRefactored:
         self.position = None
         self.entry_price = 0
 
-    def exchange_extraction(self, symbols, interval="5m", period="1mo"):
+    def exchange_extraction(self, start:str, end:str, symbols, interval=None, period=None):
         """
         Downloads exchange rate data for given symbols using yfinance.
 
@@ -30,21 +30,40 @@ class AlgorithmicTradingRefactored:
         """
         exchange_rates = {}
         for symbol in symbols:
-            data = yf.download(symbol, interval=interval, period=period)
+            
+            if (interval is not None) and (period is not None):
+                data = yf.download(symbol, start=start, end=end, interval=interval, period=period)
+            
+            elif (interval is not None) and (period is None):
+                data = yf.download(symbol, start=start, end=end, interval=interval)
+            
+            elif (interval is None) and (period is not None):
+                data = yf.download(symbol, start=start, end=end, period=period)
+            
+            else:
+                data = yf.download(symbol, start=start, end=end)
+                
             if not data.empty:
-                exchange_rates[symbol] = data['Close']
+                # Store closing rates
+                exchange_rates[symbol] = data#["Close"]
         return exchange_rates
+
 
     def flatten_data(self, data):
         """Flattens multi-level columns in the DataFrame."""
         flat_data = data.copy()
         flat_data.columns = ['_'.join(filter(None, col)) for col in flat_data.columns]
+        flat_data.columns = [s.split('_')[0] for s in flat_data.columns]
         flat_data = flat_data.reset_index()
         return flat_data
 
     def create_moving_average(self, data, column_name, window=20):
         """Adds a moving average column to the DataFrame."""
         data[f'MA_{window}'] = data[column_name].rolling(window=window).mean()
+        return data
+    
+    def compute_zscore(self, data, column:str, window=10):
+        data['Z-Score'] = (data[column] - data[column].rolling(window=window).mean()) / data[column].rolling(window=window).std()
         return data
 
     def calculate_trend(self, data, price_column, short_window, long_window):
