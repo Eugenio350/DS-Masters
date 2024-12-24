@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import itertools
 import ta
+import math
 
 class AlgorithmicTradingRefactored:
     def __init__(self, initial_balance=100000):
@@ -68,10 +69,10 @@ class AlgorithmicTradingRefactored:
 
     def calculate_trend(self, data, price_column, short_window, long_window):
         """Calculates short and long-term moving averages for trend detection."""
-        data['Short_MA'] = data[price_column].rolling(window=short_window).mean()
-        data['Long_MA'] = data[price_column].rolling(window=long_window).mean()
-        data['Trend'] = np.where(data['Short_MA'] > data['Long_MA'], 'uptrend',
-                          np.where(data['Short_MA'] < data['Long_MA'], 'downtrend', 'no_trend'))
+        data.loc[:,'Short_MA'] = data[price_column].rolling(window=short_window).mean()
+        data.loc[:,'Long_MA'] = data[price_column].rolling(window=long_window).mean()
+        data.loc[:,'Trend'] = np.where(data['Short_MA'] > data['Long_MA'], 'uptrend',
+                        np.where(data['Short_MA'] < data['Long_MA'], 'downtrend', 'no_trend'))
         return data
 
     def calculate_rsi(self, data, price_column, window):
@@ -272,3 +273,74 @@ class AlgorithmicTradingRefactored:
 
         results_df = pd.DataFrame(results)
         return best_params, results_df
+
+        def partition_data(self, data, n_partitions=4):
+            """
+            Dynamically partitions a dataset into 'n_partition' equal parts for evaluation
+            """
+            partition_size = math.trunc(len(data) / n_partitions)
+            partitions = []
+
+            for i in range(n_partitions):
+                start_idx = i * partition_size
+                # Ensure the last partition takes all remaining data
+                end_idx = (i + 1) * partition_size if i < n_partitions - 1 else len(data)
+                partitions.append(data[start_idx:end_idx])
+
+            return partitions
+        
+    
+        def backtest_partition_strategy(self, data, price_column, z_score_column, z_score_threshold,
+                                profit_target, stop_loss, window=20, strategy_type='momentum',
+                                use_trend_alignment=False, rsi_condition=False, rsi_lower_threshold=35,
+                                rsi_upper_threshold=65, n_partitions):
+        """
+        Backtests a strategy across four partitions of the data.
+        """
+        # Split
+        partitions = self.partition_data(data, n_partitions=n_partitions)
+        
+        results = []
+        for i, partition in enumerate(partitions, start=1):
+            trades, metrics = self.backtest_strategy(
+                partition,
+                price_column=price_column,
+                z_score_column=z_score_column,
+                z_score_threshold=z_score_threshold,
+                profit_target=profit_target,
+                stop_loss=stop_loss,
+                window=window,
+                strategy_type=strategy_type,
+                use_trend_alignment=use_trend_alignment,
+                rsi_condition=rsi_condition,
+                rsi_lower_threshold=rsi_lower_threshold,
+                rsi_upper_threshold=rsi_upper_threshold)
+            
+            # Store Individual Results
+            results.append({'Trades': trades, 'Metrics':metrics})
+            
+            
+        # Aggregate Trades and Metrics Dynamically
+        combined_trades = pd.concat([result['Trades'] for result in results], ignore_index=True)
+        combined_metrics = pd.concat([result['Metrics'] for result in results], ignore_index=True)
+        
+        results = {'Combined_Trades': combined_trades,
+                   'Combined_Metrics': combined_metrics}
+        
+        trades_result = results['Combined_Trades']
+        metrics_result = results['Combined_Metrics']
+        
+        return trades_result, metrics_result
+    
+    ### Not Being Used
+        def ensure_valid_dataframe(self, df, schema):
+        """
+        Ensures a DataFrame has a valid schema, even if it's empty.
+
+        Parameters:
+        df: Input DataFrame
+        schema (list): List of column names defining the schema
+        """
+            if df is None or df.empty:
+                return pd.DataFrame(columns=schema)
+            return df
